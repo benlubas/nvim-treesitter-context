@@ -41,12 +41,42 @@ local function close()
   end
 end
 
+--- @param ctx_ranges Range4[]
+--- @param ctx_lines string[]
+--- @return Range4[], string[]
+local transform_context = function(ctx_ranges, ctx_lines)
+  local collapsed_lines = {}
+  local collapsed_ranges = {}
+  local ctx_line_offset = 1
+  for _, range in ipairs(ctx_ranges) do
+    local line = ""
+    for j = 0, range[3] - range[1] do
+      --- @type string
+      local l = ctx_lines[ctx_line_offset]
+      if not l then goto continue end
+      if j > 1 then
+        l = l:gsub('^%s+', ' ')
+      elseif j > 0 then
+        l = l:gsub('^%s+', '')
+      end
+      line = line .. l
+      ::continue::
+      ctx_line_offset = ctx_line_offset + 1
+    end
+    table.insert(collapsed_lines, line)
+    table.insert(collapsed_ranges, { range[1], range[2], range[1], -1 })
+  end
+  -- TODO: maybe there's a clever way to adjust ranges to still get highlighting, but idk
+  return collapsed_ranges, collapsed_lines
+end
+
 --- @param bufnr integer
 --- @param winid integer
 --- @param ctx_ranges Range4[]
 --- @param ctx_lines string[]
 local function open(bufnr, winid, ctx_ranges, ctx_lines)
   had_open = true
+  ctx_ranges, ctx_lines = transform_context(ctx_ranges, ctx_lines)
   require('treesitter-context.render').open(bufnr, winid, ctx_ranges, ctx_lines)
 end
 
