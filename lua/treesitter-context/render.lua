@@ -7,10 +7,10 @@ local config = require('treesitter-context.config')
 local ns = api.nvim_create_namespace('nvim-treesitter-context')
 
 -- Don't access directly, use get_bufs()
-local gutter_bufnr --- @type integer?
+local gutter_bufnr  --- @type integer?
 local context_bufnr --- @type integer?
 
-local gutter_winid --- @type integer?
+local gutter_winid  --- @type integer?
 local context_winid --- @type integer?
 
 --- @param buf integer?
@@ -44,8 +44,9 @@ end
 --- @param col integer
 --- @param ty string
 --- @param hl string
+--- @param ft string
 --- @return integer
-local function display_window(bufnr, winid, width, height, col, ty, hl)
+local function display_window(bufnr, winid, width, height, col, ty, hl, ft)
   if not winid or not api.nvim_win_is_valid(winid) then
     local sep = config.separator and { config.separator, 'TreesitterContextSeparator' } or nil
     winid = api.nvim_open_win(bufnr, false, {
@@ -64,6 +65,7 @@ local function display_window(bufnr, winid, width, height, col, ty, hl)
     vim.wo[winid].wrap = false
     vim.wo[winid].foldenable = false
     vim.wo[winid].winhl = 'NormalFloat:' .. hl
+    vim.api.nvim_set_option_value('filetype', ft, { buf = bufnr })
   else
     api.nvim_win_set_config(winid, {
       win = api.nvim_get_current_win(),
@@ -137,7 +139,7 @@ local function highlight_contexts(bufnr, ctx_bufnr, contexts)
       local start_row, end_row, end_col = context[1], context[3], context[4]
 
       for capture, node, metadata in
-        query:iter_captures(tstree:root(), bufnr, start_row, end_row + 1)
+      query:iter_captures(tstree:root(), bufnr, start_row, end_row + 1)
       do
         local range = vim.treesitter.get_range(node, bufnr, metadata[capture])
         local nsrow, nscol, nerow, necol = range[1], range[2], range[4], range[5]
@@ -208,13 +210,13 @@ end
 --- @return string, StatusLineHighlight[]?
 local function build_lno_str(win, lnum, width)
   local has_col, statuscol =
-    pcall(api.nvim_get_option_value, 'statuscolumn', { win = win, scope = 'local' })
+      pcall(api.nvim_get_option_value, 'statuscolumn', { win = win, scope = 'local' })
   if has_col and statuscol and statuscol ~= '' then
     local ok, data = pcall(api.nvim_eval_statusline, statuscol, {
       winid = win,
       use_statuscol_lnum = lnum,
       highlights = true,
-      fillchar = ' ',  -- Fixed in Neovim 0.10 (#396)
+      fillchar = ' ', -- Fixed in Neovim 0.10 (#396)
     })
     if ok then
       return data.str, data.highlights
@@ -286,7 +288,7 @@ end
 ---@param contexts Range4[]
 ---@param gutter_width integer
 local function render_lno(win, bufnr, contexts, gutter_width)
-  local lno_text = {} --- @type string[]
+  local lno_text = {}       --- @type string[]
   local lno_highlights = {} --- @type StatusLineHighlight[][]
 
   for _, range in ipairs(contexts) do
@@ -332,7 +334,13 @@ local function copy_extmarks(bufnr, ctx_bufnr, contexts)
   local offset = 0
   for _, context in ipairs(contexts) do
     local ctx_srow, ctx_scol, ctx_erow, ctx_ecol = context[1], context[2], context[3], context[4]
-    local extmarks = api.nvim_buf_get_extmarks(bufnr, -1, {ctx_srow, ctx_scol}, {ctx_erow, ctx_ecol}, { details = true })
+    local extmarks = api.nvim_buf_get_extmarks(
+      bufnr,
+      -1,
+      { ctx_srow, ctx_scol },
+      { ctx_erow, ctx_ecol },
+      { details = true }
+    )
 
     for _, m in ipairs(extmarks) do
       --- @type integer, integer, integer, vim.api.keyset.extmark_details
@@ -382,6 +390,7 @@ function M.open(bufnr, winid, ctx_ranges, ctx_lines)
   local win_height = math.max(1, #ctx_lines)
 
   local gbufnr, ctx_bufnr = get_bufs()
+  local ft = vim.api.nvim_get_option_value("filetype", { buf = bufnr })
 
   if config.line_numbers and (vim.wo[winid].number or vim.wo[winid].relativenumber) then
     gutter_winid = display_window(
@@ -391,7 +400,8 @@ function M.open(bufnr, winid, ctx_ranges, ctx_lines)
       win_height,
       0,
       'treesitter_context_line_number',
-      'TreesitterContextLineNumber'
+      'TreesitterContextLineNumber',
+      ft
     )
     render_lno(winid, gbufnr, ctx_ranges, gutter_width)
   else
@@ -405,7 +415,8 @@ function M.open(bufnr, winid, ctx_ranges, ctx_lines)
     win_height,
     gutter_width,
     'treesitter_context',
-    'TreesitterContext'
+    'TreesitterContext',
+    ft
   )
 
   if not set_lines(ctx_bufnr, ctx_lines) then

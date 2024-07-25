@@ -323,12 +323,12 @@ function M.get(bufnr, winid)
               local last_context = context_ranges[#context_ranges]
               if last_context and parent_start_row == last_context[1] then
                 -- If there are multiple contexts on the same row, then prefer the inner
-                contexts_height = contexts_height - util.get_range_height(last_context)
+                contexts_height = contexts_height - 1
                 context_ranges[#context_ranges] = nil
                 context_lines[#context_lines] = nil
               end
 
-              contexts_height = contexts_height + util.get_range_height(range)
+              contexts_height = contexts_height + 1
               context_ranges[#context_ranges + 1] = range
               context_lines[#context_lines + 1] = lines
             end
